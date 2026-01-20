@@ -87,6 +87,8 @@ async function run() {
     .promise();
 
   console.log("ZIP extracted");
+  console.log('Files in extract dir:', fs.readdirSync(EXTRACT_DIR));
+
 
   // --- Upload audio files ---
   const files = fs.readdirSync(EXTRACT_DIR, { recursive: true });

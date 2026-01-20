@@ -14,6 +14,7 @@ async function uploadToDrive(auth, filePath, parentFolderId, driveFileName) {
   const drive = google.drive({ version: 'v3', auth });
 
   const response = await drive.files.create({
+    supportsAllDrives: true,
     requestBody: {
       name: driveFileName,
       parents: [parentFolderId]
@@ -26,6 +27,7 @@ async function uploadToDrive(auth, filePath, parentFolderId, driveFileName) {
   });
 
   console.log(`Uploaded ${driveFileName}`);
+  console.log('Drive upload response:', response.data);
 }
 
 
