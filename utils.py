@@ -1,6 +1,7 @@
 import re
 import os
 import json
+import shutil
 import zipfile
 from pathlib import Path
 from datetime import datetime
@@ -94,6 +95,9 @@ def upload_to_drive(credentials, file_path, drive_file_name):
 def extract_zip_file(zip_path):
     try:
         print(f"Starting ZIP extraction for: {zip_path}")
+        temp_extract_dir = Path(EXTRACT_DIR) / "temp_extract"
+        temp_extract_dir.mkdir(parents=True, exist_ok=True)
+        
 
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_entries = zip_ref.namelist()
@@ -103,26 +107,23 @@ def extract_zip_file(zip_path):
                 info = zip_ref.getinfo(entry)
                 print(f"  {index}. {entry} ({info.file_size} bytes)")
 
-            zip_ref.extractall(EXTRACT_DIR)
+            zip_ref.extractall(temp_extract_dir)
 
-        print(f"ZIP extracted successfully to: {EXTRACT_DIR}")
+        print(f"ZIP extracted successfully to temporary directory: {temp_extract_dir}")
 
-        # Extract any nested ZIP files found in the extract directory
-        for extracted_file in Path(EXTRACT_DIR).iterdir():
-            if extracted_file.name.endswith('.zip') and extracted_file.is_file():
-                nested_zip_path = str(extracted_file)
-                print(f"Found nested ZIP file: {extracted_file.name}")
-                print("Extracting nested ZIP...")
-                with zipfile.ZipFile(nested_zip_path, 'r') as nested_zip_ref:
-                    nested_zip_ref.extractall(EXTRACT_DIR)
-                # Remove the nested ZIP file after extraction
-                extracted_file.unlink()
-                print(f"Removed nested ZIP file: {extracted_file.name}")
+        for extracted_file in temp_extract_dir.rglob("*.zip"):
+            if extracted_file.name.endswith('.mbox.zip'):
+                mbox_zip_path = str(extracted_file)
+                print(f"Found .mbox.zip file: {extracted_file.name}")
+                with zipfile.ZipFile(mbox_zip_path, 'r') as mbox_zip_ref:
+                    mbox_zip_ref.extractall(EXTRACT_DIR)
+
+        shutil.rmtree(temp_extract_dir)
+        print(f"Cleaned up temporary directory: {temp_extract_dir}")
 
     except Exception as extract_error:
         print(f"ZIP extraction failed: {extract_error}")
 
-        # Check what files are currently in the extract directory
         if os.path.exists(EXTRACT_DIR):
             try:
                 extracted_files = list(Path(EXTRACT_DIR).iterdir())
