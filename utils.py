@@ -112,4 +112,16 @@ def extract_zip_files(zip_path):
 
     except Exception as extract_error:
         print(f"ZIP extraction failed: {extract_error}")
+
+        # Check what files are currently in the extract directory
+        if os.path.exists(EXTRACT_DIR):
+            try:
+                extracted_files = list(Path(EXTRACT_DIR).iterdir())
+                file_names = [f.name for f in extracted_files]
+                print(f"Files currently in extract directory: {file_names}")
+            except Exception as dir_error:
+                print(f"Could not read extract directory: {dir_error}")
+        else:
+            print("Extract directory does not exist")
+
         print("Downloaded file is not a valid ZIP file!")
