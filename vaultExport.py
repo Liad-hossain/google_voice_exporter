@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 import shutil
 import google.auth.transport.requests as google_requests
-from utils import build_filename, upload_to_drive, extract_zip_files, get_auth_credentials, get_audio_files
+from utils import build_filename, upload_to_drive, extract_zip_file, get_auth_credentials, get_audio_files
 
 TEMP_DIR = "./temp"
 EXTRACT_DIR = "./temp/extracted"
@@ -12,7 +12,10 @@ EXTRACT_DIR = "./temp/extracted"
 def download_zip_files(gcs_url, credentials):
     print(f"Downloading: {gcs_url}")
     headers = {"Authorization": f"Bearer {credentials.token}"}
-    zip_path = os.path.join(TEMP_DIR, "export.zip")
+
+    # Extract filename from URL
+    filename = gcs_url.split('/')[-1]
+    zip_path = os.path.join(TEMP_DIR, filename)
 
     with requests.get(gcs_url, headers=headers, stream=True, timeout=30) as response:
         response.raise_for_status()
@@ -21,22 +24,32 @@ def download_zip_files(gcs_url, credentials):
 
     file_size = os.path.getsize(zip_path)
     print(f"Download completed. File size: {file_size} bytes")
+    return zip_path
 
 
 
 def download_and_upload(completed_export, credentials):
-    
+
     files = completed_export.get('cloudStorageSink', {}).get('files', [])
     if not files:
         print("No files found in the completed export")
         return
-    
+
+    zip_files_downloaded = []
+
     for file_info in files:
         gcs_url = f"https://storage.googleapis.com/{file_info['bucketName']}/{file_info['objectName']}"
-        download_zip_files(gcs_url, credentials)
 
-    zip_path = os.path.join(TEMP_DIR, "export.zip")
-    extract_zip_files(zip_path)
+        # Only download ZIP files, skip metadata XML files
+        if gcs_url.endswith('.zip'):
+            zip_path = download_zip_files(gcs_url, credentials)
+            zip_files_downloaded.append(zip_path)
+        else:
+            print(f"Skipping non-ZIP file: {gcs_url}")
+
+    # Extract all downloaded ZIP files
+    for zip_path in zip_files_downloaded:
+        extract_zip_file(zip_path)
 
     audio_files = get_audio_files()
     print(f"All files found: {audio_files}")

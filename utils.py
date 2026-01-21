@@ -90,7 +90,7 @@ def upload_to_drive(credentials, file_path, drive_file_name):
     return file
 
 
-def extract_zip_files(zip_path):
+def extract_zip_file(zip_path):
     try:
         print("Starting ZIP extraction...")
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
