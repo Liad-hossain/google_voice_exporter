@@ -1,7 +1,7 @@
+import re
 import os
 import mailbox
-import datetime
-from email.utils import parsedate_to_datetime
+
 
 TEMP_DIR = "./temp"
 EXTRACT_DIR = "./temp/extracted"
@@ -16,6 +16,47 @@ def get_mbox_files():
                 rel_path = os.path.relpath(full_path, EXTRACT_DIR)
                 mbox_files.append(rel_path)
     return mbox_files
+
+
+def get_call_duration(subject, message):
+    call_duration = None
+    duration_patterns = [
+        r'Duration:?\s*(\d+):(\d+)',  # Duration: 5:23
+        r'(\d+)m\s*(\d+)s',          # 5m 23s
+        r'(\d+):(\d+)',              # 5:23
+        r'(\d+)\s*min',              # 5 min
+        r'(\d+)\s*sec'               # 30 sec
+    ]
+
+    for pattern in duration_patterns:
+        match = re.search(pattern, subject, re.IGNORECASE)
+        if match:
+            if len(match.groups()) == 2:
+                minutes, seconds = match.groups()
+                call_duration = f"{minutes}:{seconds.zfill(2)}"
+            else:
+                call_duration = f"0:{match.group(1).zfill(2)}"
+            break
+
+
+    if not call_duration and message.is_multipart():
+        for part in message.walk():
+            if part.get_content_type() == 'text/plain':
+                body = part.get_payload(decode=True)
+                if body:
+                    body_text = body.decode('utf-8', errors='ignore')
+                    for pattern in duration_patterns:
+                        match = re.search(pattern, body_text, re.IGNORECASE)
+                        if match:
+                            if len(match.groups()) == 2:
+                                minutes, seconds = match.groups()
+                                call_duration = f"{minutes}:{seconds.zfill(2)}"
+                            else:
+                                call_duration = f"0:{match.group(1).zfill(2)}"
+                            break
+                    if call_duration:
+                        break
+    return call_duration
 
 
 def process_mbox_file(mbox_path):
@@ -36,17 +77,14 @@ def process_mbox_file(mbox_path):
             if 'OUTGOING_CALL' in subject or 'INCOMING_CALL' in subject or 'recording' in subject.lower():
                 from_number = msg.get('From', '').strip('+')
                 to_number = msg.get('To', '').strip('+')
-                date_str = msg.get('Date', '')
-
+                date_time = msg.get('Date', '')
+                message_id = msg.get('Message-ID', '')
                 is_outgoing = 'OUTGOING_CALL' in subject
+                call_type = 'OUTGOING' if is_outgoing else 'INCOMING'
                 phone_number = to_number if is_outgoing else from_number
-
-                try:
-                    parsed_date = parsedate_to_datetime(date_str)
-                    timestamp = parsed_date.strftime('%Y%m%d_%H%M%S')
-                except Exception as e:
-                    print(f"Failed to parse date '{date_str}': {e}")
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                call_duration = get_call_duration(subject, msg)
+                
+                                
 
                 if msg.is_multipart():
                     for part in msg.walk():
@@ -56,14 +94,24 @@ def process_mbox_file(mbox_path):
                                 payload = part.get_payload(decode=True)
                                 
                                 if payload:
-                                    audio_filename = f"call_{phone_number}_{timestamp}.mp3"
+                                    audio_filename = f"call_{phone_number}_{date_time}.mp3"
                                     audio_path = os.path.join(EXTRACT_DIR, audio_filename)
 
                                     try:
                                         with open(audio_path, 'wb') as audio_file:
                                             audio_file.write(payload)
 
-                                        audio_recordings.append(audio_filename)
+                                        recording_info = {
+                                            'message_id': message_id,
+                                            'file_name': audio_filename,
+                                            'from_number': from_number,
+                                            'to_number': to_number,
+                                            'call_duration': call_duration,
+                                            'call_type': call_type,
+                                            'date_time': date_time
+                                        }
+
+                                        audio_recordings.append(recording_info)
                                         print(f"Extracted audio recording: {audio_filename}")
 
                                     except Exception as e:

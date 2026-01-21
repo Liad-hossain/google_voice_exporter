@@ -1,10 +1,8 @@
-import re
 import os
 import json
 import shutil
 import zipfile
 from pathlib import Path
-from datetime import datetime
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
@@ -33,21 +31,6 @@ def get_auth_credentials():
     return credentials
 
 
-def extract_phone_number(filename):
-    match = re.search(r'\+\d{6,15}', filename)
-    return match.group(0) if match else "unknown"
-
-
-def get_timestamp():
-    return datetime.now().isoformat().replace(':', '-').replace('.', '-')
-
-
-def build_filename(original_filename):
-    """Build a new filename with phone number and timestamp"""
-    phone = extract_phone_number(original_filename)
-    timestamp = get_timestamp()
-    return f"call_{phone}_{timestamp}.wav"
-
 
 def upload_to_drive(credentials, file_path, drive_file_name):
     drive_service = build('drive', 'v3', credentials=credentials)
@@ -73,8 +56,52 @@ def upload_to_drive(credentials, file_path, drive_file_name):
     ).execute()
 
     print(f"Uploaded {drive_file_name}")
-    print(f"Drive upload response: {file}")
     return file
+
+
+def is_exist_in_sheet(credentials, id):
+    sheets_service = build('sheets', 'v4', credentials=credentials)
+    sheet = sheets_service.spreadsheets()
+    sheet_id = os.environ.get('GOOGLE_SPREADSHEET_ID')
+    sheet_tab_name = os.environ.get('GOOGLE_SHEET_TAB_NAME', '')
+    if not sheet_id or not sheet_tab_name:
+        raise ValueError("GOOGLE_SPREADSHEET_ID or GOOGLE_SHEET_TAB_NAME environment variable not set")
+
+    result = sheet.values().get(
+        spreadsheetId=sheet_id,
+        range=f'{sheet_tab_name}!A:A'
+    ).execute()
+
+    values = result.get('values', [])
+    for row in values:
+        if row and row[0] == id:
+            return True
+    return False
+
+
+def add_row_to_sheet(credentials, sheet_data):
+    sheets_service = build('sheets', 'v4', credentials=credentials)
+    sheet = sheets_service.spreadsheets()
+    sheet_id = os.environ.get('GOOGLE_SPREADSHEET_ID')
+    sheet_tab_name = os.environ.get('GOOGLE_SHEET_TAB_NAME', '')
+    
+    if not sheet_id or not sheet_tab_name:
+        raise ValueError("GOOGLE_SPREADSHEET_ID or GOOGLE_SHEET_TAB_NAME environment variable not set")
+
+    body = {
+        'values': sheet_data
+    }
+
+    result = sheet.values().append(
+        spreadsheetId=sheet_id,
+        range=f'{sheet_tab_name}!A1',
+        valueInputOption='RAW',
+        insertDataOption='INSERT_ROWS',
+        body=body
+    ).execute()
+
+    print(f"Added row to sheet: {sheet_data}")
+    return result
 
 
 def extract_zip_file(zip_path):

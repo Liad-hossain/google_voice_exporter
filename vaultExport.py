@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 import shutil
 import google.auth.transport.requests as google_requests
-from utils import upload_to_drive, extract_zip_file, get_auth_credentials
+from utils import upload_to_drive, extract_zip_file, get_auth_credentials, is_exist_in_sheet, add_row_to_sheet
 from helpers import process_mbox_file, get_mbox_files
 
 TEMP_DIR = "./temp"
@@ -14,7 +14,6 @@ def download_zip_files(gcs_url, credentials):
     print(f"Downloading: {gcs_url}")
     headers = {"Authorization": f"Bearer {credentials.token}"}
 
-    # Extract filename from URL
     filename = gcs_url.split('/')[-1]
     zip_path = os.path.join(TEMP_DIR, filename)
 
@@ -41,7 +40,6 @@ def download_and_upload(completed_export, credentials):
     for file_info in files:
         gcs_url = f"https://storage.googleapis.com/{file_info['bucketName']}/{file_info['objectName']}"
 
-        # Only download ZIP files, skip metadata XML files
         if gcs_url.endswith('.zip'):
             zip_path = download_zip_files(gcs_url, credentials)
             zip_files_downloaded.append(zip_path)
@@ -55,36 +53,46 @@ def download_and_upload(completed_export, credentials):
         for mbox_file in mbox_files:
             audio_files.extend(process_mbox_file(mbox_file))
 
-    print(f"All files found: {audio_files}")
+    print(f"All files found: {len(audio_files)} recordings")
     
-    for file_path in audio_files:
-        print(f"Uploading file: {file_path}")
-        full_path = os.path.join(EXTRACT_DIR, file_path)
+    for recording_info in audio_files:
+        file_name = recording_info['file_name']
+        full_path = os.path.join(EXTRACT_DIR, file_name)
 
-        upload_to_drive(credentials, full_path, file_path)
+        if not is_exist_in_sheet(credentials, recording_info['message_id']):
+            upload_to_drive(credentials, full_path, file_name)
+            
+            sheet_data = [
+                recording_info['message_id'],
+                recording_info['file_name'],
+                recording_info['from_number'],
+                recording_info['to_number'],
+                recording_info['call_duration'] or 'Unknown',
+                recording_info['call_type'],
+                recording_info['date_time']
+            ]
+            add_row_to_sheet(credentials, sheet_data)
+            
+        else:
+            print(f"Recording already exists, skipping: {recording_info['message_id']}")
 
-    print("All recordings uploaded")
+    print("All recordings processed")
 
 
 
 def run():
-    """Main execution function"""
-    # Create directories
     Path(EXTRACT_DIR).mkdir(parents=True, exist_ok=True)
 
     credentials = get_auth_credentials()
 
-    # Impersonate workspace admin if specified
     workspace_admin_email = os.environ.get('WORKSPACE_ADMIN_EMAIL')
     if workspace_admin_email:
         credentials = credentials.with_subject(workspace_admin_email)
 
-    # --- Get latest completed export ---
     vault_matter_id = os.environ.get('VAULT_MATTER_ID')
     if not vault_matter_id:
         raise ValueError("VAULT_MATTER_ID environment variable not set")
 
-    # Get access token
     request = google_requests.Request()
     credentials.refresh(request)
 
