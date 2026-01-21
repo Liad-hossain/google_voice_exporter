@@ -32,16 +32,17 @@ def get_auth_credentials():
     return credentials
 
 
-def get_audio_files():
-    audio_files = []
+
+def get_mbox_files():
+    mbox_files = []
     for root, _, files in os.walk(EXTRACT_DIR):
         for file in files:
-            if file.endswith(('.wav', '.mp3')):
+            if file.endswith('.mbox'):
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, EXTRACT_DIR)
-                audio_files.append(rel_path)
+                mbox_files.append(rel_path)
+    return mbox_files
 
-    return audio_files
 
 
 def extract_phone_number(filename):
@@ -92,34 +93,31 @@ def upload_to_drive(credentials, file_path, drive_file_name):
 
 def extract_zip_file(zip_path):
     try:
-        print("Starting ZIP extraction...")
+        print(f"Starting ZIP extraction for: {zip_path}")
+
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_entries = zip_ref.namelist()
             print(f"ZIP contains {len(zip_entries)} entries:")
-            
+
             for index, entry in enumerate(zip_entries, 1):
                 info = zip_ref.getinfo(entry)
                 print(f"  {index}. {entry} ({info.file_size} bytes)")
 
             zip_ref.extractall(EXTRACT_DIR)
 
-        print("ZIP extracted successfully")
-        extracted_files = list(Path(EXTRACT_DIR).iterdir())
-        print("Files in extract dir:", [f.name for f in extracted_files])
+        print(f"ZIP extracted successfully to: {EXTRACT_DIR}")
 
-        # Check for nested ZIP files and extract them
-        for extracted_file in extracted_files:
-            if extracted_file.name.endswith('.zip'):
+        # Extract any nested ZIP files found in the extract directory
+        for extracted_file in Path(EXTRACT_DIR).iterdir():
+            if extracted_file.name.endswith('.zip') and extracted_file.is_file():
                 nested_zip_path = str(extracted_file)
                 print(f"Found nested ZIP file: {extracted_file.name}")
                 print("Extracting nested ZIP...")
-                extract_zip_file(nested_zip_path)  # Recursive extraction
-
-        if not any(f.name.endswith(('.wav', '.mp3')) for f in Path(EXTRACT_DIR).iterdir()):
-            print("Warning: No audio files found after extraction")
-
-        if not extracted_files:
-            print("Warning: No files were extracted from the ZIP")
+                with zipfile.ZipFile(nested_zip_path, 'r') as nested_zip_ref:
+                    nested_zip_ref.extractall(EXTRACT_DIR)
+                # Remove the nested ZIP file after extraction
+                extracted_file.unlink()
+                print(f"Removed nested ZIP file: {extracted_file.name}")
 
     except Exception as extract_error:
         print(f"ZIP extraction failed: {extract_error}")

@@ -3,7 +3,8 @@ from pathlib import Path
 import requests
 import shutil
 import google.auth.transport.requests as google_requests
-from utils import build_filename, upload_to_drive, extract_zip_file, get_auth_credentials, get_audio_files
+from utils import build_filename, upload_to_drive, extract_zip_file, get_auth_credentials, get_mbox_files
+from helpers import process_mbox_file
 
 TEMP_DIR = "./temp"
 EXTRACT_DIR = "./temp/extracted"
@@ -47,11 +48,12 @@ def download_and_upload(completed_export, credentials):
         else:
             print(f"Skipping non-ZIP file: {gcs_url}")
 
-    # Extract all downloaded ZIP files
+    audio_files = []
     for zip_path in zip_files_downloaded:
         extract_zip_file(zip_path)
+        mbox_files = get_mbox_files()
+        audio_files.extend(process_mbox_file(mbox_file) for mbox_file in mbox_files)
 
-    audio_files = get_audio_files()
     print(f"All files found: {audio_files}")
     
     for file_path in audio_files:
@@ -61,7 +63,7 @@ def download_and_upload(completed_export, credentials):
 
         upload_to_drive(credentials, full_path, file_name)
 
-        print("All recordings uploaded")
+    print("All recordings uploaded")
 
 
 
