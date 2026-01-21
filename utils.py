@@ -97,8 +97,19 @@ def add_row_to_sheet(credentials, sheet_data):
     sheet_id = sheet_id.strip() if sheet_id else None
     sheet_tab_name = sheet_tab_name.strip() if sheet_tab_name else None
 
+    cleaned_sheet_data = []
+    for i, value in enumerate(sheet_data):
+        if value is None:
+            cleaned_sheet_data.append('')
+        else:
+            str_value = str(value).strip()
+            str_value = str_value.replace('\n', ' ').replace('\r', ' ')
+            cleaned_sheet_data.append(str_value)
+
+    print(f"Debug - Sheet data to append: {cleaned_sheet_data}")
+
     body = {
-        'values': sheet_data
+        'values': [cleaned_sheet_data]
     }
 
     result = sheet.values().append(
@@ -109,7 +120,7 @@ def add_row_to_sheet(credentials, sheet_data):
         body=body
     ).execute()
 
-    print(f"Added row to sheet: {sheet_data}")
+    print(f"Added row to sheet: {cleaned_sheet_data}")
     return result
 
 

@@ -94,7 +94,7 @@ def process_mbox_file(mbox_path):
                                 payload = part.get_payload(decode=True)
                                 
                                 if payload:
-                                    audio_filename = f"call_{phone_number}_{date_time}.mp3"
+                                    audio_filename = f"{phone_number}_{date_time}.mp3"
                                     audio_path = os.path.join(EXTRACT_DIR, audio_filename)
 
                                     try:
