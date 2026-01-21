@@ -2,6 +2,7 @@
   "name": "vault-voice-drive-upload",
   "version": "1.0.0",
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "axios": "^1.6.0",
     "google-auth-library": "^9.0.0",
     "googleapis": "^131.0.0",

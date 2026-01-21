@@ -2,7 +2,7 @@ const { GoogleAuth } = require("google-auth-library");
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
-const unzipper = require("unzipper");
+const AdmZip = require("adm-zip");
 const { uploadToDrive } = require("./driveUpload");
 
 const TEMP_DIR = "./temp";
@@ -22,6 +22,56 @@ function buildFilename(originalFilename) {
   const timestamp = getTimestamp();
 
   return `call_${phone}_${timestamp}.wav`;
+}
+
+function extractZipFiles(zipPath) {
+  try {
+    console.log("Starting ZIP extraction with adm-zip...");
+    const zip = new AdmZip(zipPath);
+
+    // Log ZIP contents before extraction
+    const zipEntries = zip.getEntries();
+    console.log(`ZIP contains ${zipEntries.length} entries:`);
+    zipEntries.forEach((entry, index) => {
+      console.log(
+        `  ${index + 1}. ${entry.entryName} (${entry.getData().length} bytes)`,
+      );
+    });
+
+    zip.extractAllTo(EXTRACT_DIR, true);
+
+    console.log("ZIP extracted successfully");
+    const extractedFiles = fs.readdirSync(EXTRACT_DIR);
+    console.log("Files in extract dir:", extractedFiles);
+
+    if (extractedFiles.length === 0) {
+      console.log("Warning: No files were extracted from the ZIP");
+    }
+  } catch (extractError) {
+    console.error("ZIP extraction failed:", extractError.message);
+    console.log("Checking if the downloaded file is actually a ZIP...");
+
+    // Check file type
+    const fileBuffer = fs.readFileSync(zipPath);
+    const fileSignature = fileBuffer.slice(0, 4).toString("hex");
+    console.log("File signature (first 4 bytes):", fileSignature);
+
+    // ZIP files start with '504b' (PK)
+    if (
+      fileSignature !== "504b0304" &&
+      fileSignature !== "504b0506" &&
+      fileSignature !== "504b0708"
+    ) {
+      console.log("Downloaded file is not a valid ZIP file!");
+      console.log("File might be an MBOX file or other format.");
+      console.log("Renaming to .mbox for inspection...");
+      const mboxPath = path.join(TEMP_DIR, "export.mbox");
+      fs.renameSync(zipPath, mboxPath);
+      console.log("File renamed to:", mboxPath);
+    }
+
+    throw extractError;
+  }
 }
 
 async function run() {
@@ -80,14 +130,13 @@ async function run() {
     zipStream.on("error", reject);
   });
 
-  // --- Extract ZIP ---
-  await fs
-    .createReadStream(zipPath)
-    .pipe(unzipper.Extract({ path: EXTRACT_DIR }))
-    .promise();
+  console.log(
+    "Download completed. File size:",
+    fs.statSync(zipPath).size,
+    "bytes",
+  );
 
-  console.log("ZIP extracted");
-  console.log("Files in extract dir:", fs.readdirSync(EXTRACT_DIR));
+  extractZipFiles(zipPath);
 
   // --- Upload audio files ---
   const files = fs.readdirSync(EXTRACT_DIR, { recursive: true });
