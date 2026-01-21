@@ -112,15 +112,4 @@ def extract_zip_files(zip_path):
 
     except Exception as extract_error:
         print(f"ZIP extraction failed: {extract_error}")
-
-        with open(zip_path, 'rb') as f:
-            file_signature = f.read(4).hex()
-
-        if file_signature not in ['504b0304', '504b0506', '504b0708']:
-            print("Downloaded file is not a valid ZIP file!")
-            mbox_path = os.path.join(TEMP_DIR, "export.mbox")
-            os.rename(zip_path, mbox_path)
-            print(f"File renamed to: {mbox_path}")
-
-        raise extract_error
-    
+        print("Downloaded file is not a valid ZIP file!")
