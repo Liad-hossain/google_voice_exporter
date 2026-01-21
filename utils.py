@@ -107,6 +107,17 @@ def extract_zip_file(zip_path):
         extracted_files = list(Path(EXTRACT_DIR).iterdir())
         print("Files in extract dir:", [f.name for f in extracted_files])
 
+        # Check for nested ZIP files and extract them
+        for extracted_file in extracted_files:
+            if extracted_file.name.endswith('.zip'):
+                nested_zip_path = str(extracted_file)
+                print(f"Found nested ZIP file: {extracted_file.name}")
+                print("Extracting nested ZIP...")
+                extract_zip_file(nested_zip_path)  # Recursive extraction
+
+        if not any(f.name.endswith(('.wav', '.mp3')) for f in Path(EXTRACT_DIR).iterdir()):
+            print("Warning: No audio files found after extraction")
+
         if not extracted_files:
             print("Warning: No files were extracted from the ZIP")
 
