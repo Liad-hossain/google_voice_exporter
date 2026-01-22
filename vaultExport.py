@@ -84,6 +84,49 @@ def download_and_upload(export_data, credentials):
         raise
 
 
+def create_export(credentials):
+    exports_url = f"https://vault.googleapis.com/v1/matters/{vault_matter_id}/exports"
+    headers = {"Authorization": f"Bearer {credentials.token}"}
+    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    workspace_admin_email = os.environ.get('WORKSPACE_ADMIN_EMAIL')
+    vault_matter_id = os.environ.get('VAULT_MATTER_ID')
+    if not vault_matter_id:
+        raise ValueError("VAULT_MATTER_ID environment variable not set")
+    
+    body = {
+        "name": f"Voice_Recordings_Export_{timestamp}",
+        "query": {
+            "corpus": "VOICE",
+            "dataScope": "ALL_DATA",
+            "searchMethod": "ACCOUNT",
+            "accountInfo": {
+                "emails": [workspace_admin_email]
+            },
+            "startTime": get_last_export_time()
+        },
+        "exportOptions": {
+            "voiceOptions": {
+                "exportFormat": "MBOX"
+            }
+        }
+    }
+
+    response = requests.post(exports_url, headers=headers, json=body)
+    response.raise_for_status()
+    return response.json()
+
+
+def get_exports(credentials):
+    exports_url = f"https://vault.googleapis.com/v1/matters/{vault_matter_id}/exports"
+    headers = {"Authorization": f"Bearer {credentials.token}"}
+    vault_matter_id = os.environ.get('VAULT_MATTER_ID')
+    if not vault_matter_id:
+        raise ValueError("VAULT_MATTER_ID environment variable not set")
+
+    response = requests.get(exports_url, headers=headers)
+    response.raise_for_status()
+    return response.json().get("exports", [])
+
 
 def run():
     try:
@@ -95,39 +138,17 @@ def run():
         if workspace_admin_email:
             credentials = credentials.with_subject(workspace_admin_email)
 
-        vault_matter_id = os.environ.get('VAULT_MATTER_ID')
-        if not vault_matter_id:
-            raise ValueError("VAULT_MATTER_ID environment variable not set")
 
         request = google_requests.Request()
         credentials.refresh(request)
 
-        exports_url = f"https://vault.googleapis.com/v1/matters/{vault_matter_id}/exports"
-        headers = {"Authorization": f"Bearer {credentials.token}"}
-        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        body = {
-            "name": f"Voice_Recordings_Export_{timestamp}",
-            "query": {
-                "corpus": "VOICE",
-                "dataScope": "ALL_DATA",
-                "searchMethod": "ACCOUNT",
-                "accountInfo": {
-                    "emails": [workspace_admin_email]
-                },
-                "startTime": get_last_export_time()
-            },
-            "exportOptions": {
-                "voiceOptions": {
-                    "exportFormat": "MBOX"
-                }
-            }
-        }
+        # export_data = create_export(credentials)
+        # download_and_upload(export_data, credentials)
+        
+        exports_data = get_exports(credentials)
+        for export in exports_data:
+            download_and_upload(export, credentials)
 
-        response = requests.post(exports_url, headers=headers, json=body)
-        response.raise_for_status()
-        export_data = response.json()
-
-        download_and_upload(export_data, credentials)
         update_last_export_time((datetime.datetime.now() - datetime.timedelta(minutes=30)).isoformat() + "Z")
 
 
