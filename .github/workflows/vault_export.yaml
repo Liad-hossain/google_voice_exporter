@@ -2,7 +2,7 @@ name: Google Vault Voice Export (Python)
 
 on:
   schedule:
-    - cron: "0 */3 * * *" # Runs every 3 hours
+    - cron: "0 0 1 1 *" # January 1st at 00:00 UTC
   workflow_dispatch:
 
 jobs:
